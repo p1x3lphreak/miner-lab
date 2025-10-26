@@ -6,14 +6,15 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
+User=minerlab
 WorkingDirectory=/opt/miner-lab
-EnvironmentFile=/opt/miner-lab/.env
+EnvironmentFile=/etc/miner-lab/.env
 ExecStart=/opt/miner-lab/venv/bin/python3 /opt/miner-lab/scripts/miner-syncd.py
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=15
-StandardOutput=append:/opt/miner-lab/logs/miner-syncd.log
-StandardError=append:/opt/miner-lab/logs/miner-syncd.err
+StandardOutput=append:/var/log/miner-lab/miner-syncd.log
+StandardError=append:/var/log/miner-lab/miner-syncd.err
 
 [Install]
 WantedBy=multi-user.target

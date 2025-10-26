@@ -5,10 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=/etc/miner-syncd.env
-ExecStart=/opt/xmrig-summary/venv/bin/python3 /opt/xmrig-summary/xmrig-summary.py
-StandardOutput=append:/var/log/xmrig-summary.log
-StandardError=append:/var/log/xmrig-summary.log
+User=minerlab
+WorkingDirectory=/opt/miner-lab
+EnvironmentFile=/etc/miner-lab/.env
+ExecStart=/opt/miner-lab/venv/bin/python3 /opt/miner-lab/scripts/xmrig-summary.py
+StandardOutput=append:/var/log/miner-lab/xmrig-summary.log
+StandardError=append:/var/log/miner-lab/xmrig-summary.err
 TimeoutSec=60
 
 [Install]

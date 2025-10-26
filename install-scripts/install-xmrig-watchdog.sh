@@ -1,53 +1,65 @@
 #!/usr/bin/env bash
-# ==========================================================
-# Miner-Lab :: install-xmrig-watchdog.sh
-# ----------------------------------------------------------
-# Installs and configures the xmrig-watchdog service + timer.
-# Monitors xmrig process health and restarts if stalled.
-# ==========================================================
+# ============================================================
+#  Miner-Lab Component Installer: xmrig-watchdog
+# ============================================================
 
 set -euo pipefail
-REPO_BASE="https://raw.githubusercontent.com/p1x3lphreak/miner-lab/main"
-SERVICE_DIR="/etc/systemd/system"
-APP_DIR="/opt/xmrig-watchdog"
-ENV_FILE="/etc/miner-syncd.env"
+IFS=$'\n\t'
 
-echo "🐶 Installing XMRig Watchdog Service..."
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+RED="\033[1;31m"
+RESET="\033[0m"
+log()   { echo -e "${GREEN}[+]${RESET} $*"; }
+warn()  { echo -e "${YELLOW}[!]${RESET} $*"; }
+error() { echo -e "${RED}[-]${RESET} $*" >&2; }
 
-# --- 1. Dependencies --------------------------------------------------------
-sudo apt update -y
-sudo apt install -y python3 python3-venv python3-pip curl psmisc
-
-# --- 2. Application Directory ----------------------------------------------
-sudo mkdir -p "$APP_DIR"
-sudo curl -fsSL "$REPO_BASE/scripts/xmrig-watchdog.py" -o "$APP_DIR/xmrig-watchdog.py"
-sudo python3 -m venv "$APP_DIR/venv"
-sudo "$APP_DIR/venv/bin/pip" install --upgrade pip psutil requests
-
-# --- 3. Environment Check ---------------------------------------------------
-if [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Environment file not found at $ENV_FILE"
-  echo "Run install-miner-syncd.sh first!"
+# Root check
+if [ "$EUID" -ne 0 ]; then
+  error "Please run as root or with sudo."
   exit 1
 fi
 
-# --- 4. Deploy systemd units -----------------------------------------------
-echo "⚙️ Deploying systemd service and timer..."
-sudo curl -fsSL "$REPO_BASE/services/xmrig-watchdog/xmrig-watchdog.service" \
-  -o "$SERVICE_DIR/xmrig-watchdog.service"
-sudo curl -fsSL "$REPO_BASE/services/xmrig-watchdog/xmrig-watchdog.timer" \
-  -o "$SERVICE_DIR/xmrig-watchdog.timer"
+INSTALL_DIR="/opt/miner-lab"
+SYSTEMD_DIR="/etc/systemd/system"
+SERVICE_SRC="$INSTALL_DIR/services/xmrig-watchdog/xmrig-watchdog.service"
+TIMER_SRC="$INSTALL_DIR/services/xmrig-watchdog/xmrig-watchdog.timer"
+ENV_FILE="/etc/miner-lab/.env"
+LOG_DIR="/var/log/miner-lab"
+USER_NAME="minerlab"
+VENV_DIR="$INSTALL_DIR/venv"
 
-sudo chown root:root "$SERVICE_DIR"/xmrig-watchdog.*
-sudo chmod 644 "$SERVICE_DIR"/xmrig-watchdog.*
+log "Installing xmrig-watchdog service and timer..."
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now xmrig-watchdog.timer
+# Create directories and user if needed
+id -u "$USER_NAME" >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$USER_NAME"
+mkdir -p "$LOG_DIR" /etc/miner-lab
+chown -R "$USER_NAME":"$USER_NAME" "$INSTALL_DIR" "$LOG_DIR" /etc/miner-lab
 
-# --- 5. Permissions ---------------------------------------------------------
-sudo chown -R root:root "$APP_DIR"
-sudo chmod +x "$APP_DIR/xmrig-watchdog.py"
+# Python environment
+if [ ! -d "$VENV_DIR" ]; then
+  log "Creating Python virtual environment..."
+  python3 -m venv "$VENV_DIR"
+fi
 
-# --- 6. Confirmation --------------------------------------------------------
-echo "✅ XMRig Watchdog active and monitoring!"
+source "$VENV_DIR/bin/activate"
+pip install --upgrade pip
+pip install -r "$INSTALL_DIR/docs/requirements.txt"
+deactivate
+
+# Copy service and timer files
+cp -f "$SERVICE_SRC" "$SYSTEMD_DIR/"
+cp -f "$TIMER_SRC" "$SYSTEMD_DIR/"
+systemctl daemon-reload
+
+# Ensure environment file exists
+if [ ! -f "$ENV_FILE" ]; then
+  cp "$INSTALL_DIR/config/example.env" "$ENV_FILE"
+  warn "Environment file created at $ENV_FILE. Review it before enabling the service."
+fi
+
+# Enable & start
+systemctl enable --now xmrig-watchdog.timer
+
+log "xmrig-watchdog installed and timer activated."
 systemctl list-timers --all | grep xmrig-watchdog || true

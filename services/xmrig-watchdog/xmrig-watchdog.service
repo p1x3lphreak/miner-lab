@@ -5,11 +5,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/xmrig-watchdog/venv/bin/python3 /opt/xmrig-watchdog/xmrig-watchdog.py
+User=minerlab
+WorkingDirectory=/opt/miner-lab
+ExecStart=/opt/miner-lab/venv/bin/python3 /opt/miner-lab/scripts/xmrig-watchdog.py
 Restart=always
 RestartSec=30
-StandardOutput=append:/var/log/xmrig-watchdog.log
-StandardError=append:/var/log/xmrig-watchdog.log
+StandardOutput=append:/var/log/miner-lab/xmrig-watchdog.log
+StandardError=append:/var/log/miner-lab/xmrig-watchdog.err
 TimeoutStopSec=10
 
 [Install]
