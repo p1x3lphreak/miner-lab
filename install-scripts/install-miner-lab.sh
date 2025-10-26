@@ -72,7 +72,7 @@ fi
 echo "⬇️ Fetching installer scripts..."
 curl -fsSL "$GITHUB_REPO/install-scripts/install-miner-syncd.sh" -o "$INSTALL_DIR/install-scripts/install-miner-syncd.sh"
 curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-summary.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-summary.sh"
-curl -fsSL "$GITHUB_REPO/install-scripts/install-watchdog.sh" -o "$INSTALL_DIR/install-scripts/install-watchdog.sh"
+curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-watchdog.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-watchdog.sh"
 curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-autotune.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-autotune.sh"
 chmod +x "$INSTALL_DIR"/install-scripts/*.sh
 
