@@ -1,7 +1,7 @@
 # 🪙 Miner-Lab — Monero Mining Suite
 
-![Final Validation](https://github.com/<YOUR_GITHUB_USERNAME>/miner-lab/actions/workflows/final-validation.yml/badge.svg)
-![Release](https://github.com/<YOUR_GITHUB_USERNAME>/miner-lab/actions/workflows/release.yml/badge.svg)
+![Final Validation](https://github.com/p1x3lphreak/miner-lab/actions/workflows/final-validation.yml/badge.svg)
+![Release](https://github.com/p1x3lphreak/miner-lab/actions/workflows/release.yml/badge.svg)
 
 A fully-automated Monero mining toolkit for Debian 13+, built for reliability and simplicity.  
 Miner-Lab installs, configures, and manages your mining stack using **systemd** services and daily health checks.
@@ -10,7 +10,7 @@ Miner-Lab installs, configures, and manages your mining stack using **systemd** 
 
 ## ✨ Features
 
-- One-line install: `curl -fsSL https://raw.githubusercontent.com/<YOUR_GITHUB_USERNAME>/miner-lab/main/install-scripts/install-miner-lab.sh | sudo bash`
+- One-line install: `curl -fsSL https://raw.githubusercontent.com/p1x3lphreak/miner-lab/main/install-scripts/install-miner-lab.sh | sudo bash`
 - Modular daemons:
   - `miner-syncd` – Pushcut sync daemon  
   - `xmrig-summary` – Daily performance summary  
