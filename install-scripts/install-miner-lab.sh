@@ -101,7 +101,7 @@ sudo chmod +x "$INSTALL_DIR/scripts/"*.py
 # 7️⃣ Logrotate Configuration
 # ------------------------------------------------------------
 echo "🌀 Installing logrotate config..."
-sudo curl -fsSL "$GITHUB_REPO/config/logrotate/miner-lab" -o /etc/logrotate.d/miner-lab
+sudo curl -fsSL "$GITHUB_REPO/config/logrotate/miner-lab.conf" -o /etc/logrotate.d/miner-lab
 sudo chmod 644 /etc/logrotate.d/miner-lab
 echo "✅ Log rotation set for xmrig-watchdog.log and miner-syncd.log"
 
