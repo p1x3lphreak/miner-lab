@@ -2,63 +2,62 @@
 # ==========================================================
 # Miner-Lab :: install-miner-syncd.sh
 # ----------------------------------------------------------
-# Installs and configures the miner-syncd daemon.
-# Pulls service units directly from the GitHub repo.
+# Installs and configures the miner-syncd daemon
+# in the unified /opt/miner-lab/ repo structure.
 # ==========================================================
 
 set -euo pipefail
 REPO_BASE="https://raw.githubusercontent.com/p1x3lphreak/miner-lab/main"
-SERVICE_DIR="/etc/systemd/system"
-APP_DIR="/opt/miner-syncd"
-ENV_FILE="/etc/miner-syncd.env"
-CONFIG_FILE="/etc/miner-syncd/config.json"
+APP_DIR="/opt/miner-lab"
+SCRIPT_PATH="$APP_DIR/scripts"
+SERVICE_PATH="$APP_DIR/services/miner-syncd.service"
+ENV_FILE="$APP_DIR/.env"
+CONFIG_FILE="$APP_DIR/config/miner-syncd.json"
+LOG_DIR="$APP_DIR/logs"
 
 echo "🚀 Installing Miner Sync Daemon..."
 
-# --- 1. Dependencies --------------------------------------------------------
+# --- 1. Dependencies ---
 sudo apt update -y
-sudo apt install -y python3 python3-venv python3-pip curl
+sudo apt install -y python3 python3-venv python3-pip curl jq
 
-# --- 2. Application Directory ----------------------------------------------
-echo "📂 Setting up app directory at $APP_DIR"
-sudo mkdir -p "$APP_DIR"
-sudo curl -fsSL "$REPO_BASE/scripts/miner-syncd.py" -o "$APP_DIR/miner-syncd.py"
-sudo python3 -m venv "$APP_DIR/venv"
-sudo "$APP_DIR/venv/bin/pip" install --upgrade pip requests
+# --- 2. Directories ---
+sudo mkdir -p "$SCRIPT_PATH" "$LOG_DIR" "$APP_DIR/config/logrotate"
+sudo curl -fsSL "$REPO_BASE/scripts/miner-syncd.py" -o "$SCRIPT_PATH/miner-syncd.py"
 
-# --- 3. Environment File ----------------------------------------------------
+# --- 3. Virtual Environment ---
+if [ ! -d "$APP_DIR/venv" ]; then
+  echo "🐍 Creating Python venv..."
+  sudo python3 -m venv "$APP_DIR/venv"
+fi
+sudo "$APP_DIR/venv/bin/pip" install --upgrade pip requests psutil
+
+# --- 4. Environment File ---
 if [[ "${1:-}" == "--force" ]]; then
   echo "🔁 Force reconfig enabled — removing old env file..."
   sudo rm -f "$ENV_FILE"
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "🌍 Creating environment file..."
-
-  read -rp "Enter RIG name (default: mine-lab): " RIG_NAME
-  RIG_NAME=${RIG_NAME:-mine-lab}
-
-  read -rp "Enter Pushcut Alert Webhook URL: " PUSHCUT_ALERT_URL
-  read -rp "Enter Pushcut Summary Webhook URL: " PUSHCUT_SUMMARY_URL
+  echo "🌍 Creating .env file..."
+  read -rp "Enter RIG name (default: miner-lab): " RIG_NAME
+  RIG_NAME=${RIG_NAME:-miner-lab}
+  read -rp "Enter Pushcut Alert Webhook URL: " PUSHCUT_URL_ALERT
+  read -rp "Enter Pushcut Summary Webhook URL: " PUSHCUT_URL_SUMMARY
 
   sudo bash -c "cat > $ENV_FILE" <<EOF
 RIG_NAME="$RIG_NAME"
-PUSHCUT_ALERT_URL="$PUSHCUT_ALERT_URL"
-PUSHCUT_SUMMARY_URL="$PUSHCUT_SUMMARY_URL"
+PUSHCUT_URL_ALERT="$PUSHCUT_URL_ALERT"
+PUSHCUT_URL_SUMMARY="$PUSHCUT_URL_SUMMARY"
 EOF
-
-  echo "✅ Environment file created at $ENV_FILE"
-else
-  echo "⚙️ Environment file already exists — skipping setup."
 fi
 
 sudo chown root:root "$ENV_FILE"
 sudo chmod 600 "$ENV_FILE"
 
-# --- 4. Config File ---------------------------------------------------------
+# --- 5. Default Config ---
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "🧩 Generating default config.json..."
-  sudo mkdir -p "$(dirname "$CONFIG_FILE")"
+  echo "🧩 Generating miner-syncd.json..."
   sudo bash -c "cat > $CONFIG_FILE" <<EOF
 {
   "rig": "$RIG_NAME",
@@ -66,31 +65,24 @@ if [ ! -f "$CONFIG_FILE" ]; then
   "last_sync": null
 }
 EOF
-  sudo chown root:root "$CONFIG_FILE"
-  sudo chmod 644 "$CONFIG_FILE"
-else
-  echo "🧠 Existing config.json found — leaving untouched."
 fi
-# --- logrotate copy
-sudo cp ./config/logrotate-d-miner-lab /etc/logrotate.d/miner-lab
+sudo chmod 644 "$CONFIG_FILE"
+
+# --- 6. Logrotate ---
+sudo curl -fsSL "$REPO_BASE/config/logrotate/miner-lab.conf" -o "/etc/logrotate.d/miner-lab"
 sudo chmod 644 /etc/logrotate.d/miner-lab
-sudo logrotate --debug /etc/logrotate.d/miner-lab
+sudo logrotate --debug /etc/logrotate.d/miner-lab || true
 
-# --- 5. Systemd Service Deployment -----------------------------------------
+# --- 7. Systemd Service ---
 echo "⚙️ Deploying systemd service..."
-sudo curl -fsSL "$REPO_BASE/services/miner-syncd/miner-syncd.service" \
-  -o "$SERVICE_DIR/miner-syncd.service"
-
-sudo chown root:root "$SERVICE_DIR/miner-syncd.service"
-sudo chmod 644 "$SERVICE_DIR/miner-syncd.service"
-
+sudo curl -fsSL "$REPO_BASE/services/miner-syncd.service" -o "/etc/systemd/system/miner-syncd.service"
+sudo chmod 644 /etc/systemd/system/miner-syncd.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now miner-syncd
 
-# --- 6. Permissions ---------------------------------------------------------
+# --- 8. Ownership & Permissions ---
 sudo chown -R root:root "$APP_DIR"
-sudo chmod +x "$APP_DIR/miner-syncd.py"
+sudo chmod +x "$SCRIPT_PATH/miner-syncd.py"
 
-# --- 7. Confirmation --------------------------------------------------------
 echo "✅ Miner Sync Daemon successfully installed!"
 systemctl status miner-syncd --no-pager | head -n 12

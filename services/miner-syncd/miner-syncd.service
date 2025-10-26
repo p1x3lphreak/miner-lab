@@ -1,19 +1,19 @@
 [Unit]
-Description=Miner Sync Daemon
+Description=Miner-Lab Sync Daemon
 After=network.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/miner-syncd.env
-ExecStart=/opt/miner-syncd/venv/bin/python3 /opt/miner-syncd/miner-syncd.py
-WorkingDirectory=/opt/miner-syncd
+WorkingDirectory=/opt/miner-lab
+EnvironmentFile=/opt/miner-lab/.env
+ExecStart=/opt/miner-lab/venv/bin/python3 /opt/miner-lab/scripts/miner-syncd.py
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=15
-StandardOutput=append:/var/log/miner-syncd.log
-StandardError=append:/var/log/miner-syncd.log
+StandardOutput=append:/opt/miner-lab/logs/miner-syncd.log
+StandardError=append:/opt/miner-lab/logs/miner-syncd.err
 
 [Install]
 WantedBy=multi-user.target
