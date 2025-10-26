@@ -39,7 +39,7 @@ if ! grep -qi "debian" /etc/os-release; then
 fi
 
 # ----------[ CONFIGURATION ]----------
-REPO_URL="https://github.com/<YOUR_GITHUB_USERNAME>/miner-lab.git"
+REPO_URL="https://github.com/p1x3lphreak/miner-lab.git"
 INSTALL_DIR="/opt/miner-lab"
 LOG_DIR="/var/log/miner-lab"
 ENV_FILE="/etc/miner-lab/.env"
