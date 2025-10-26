@@ -43,7 +43,12 @@ jobs:
           echo "" >> CHANGELOG.md
           echo "CHANGELOG generated:"
           cat CHANGELOG.md
-
+      
+      - name: 🧩 Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      
       - name: 🏷️ Create Git tag
         run: |
           git tag -a "${{ steps.version.outputs.new_tag }}" -m "Automated release ${{ steps.version.outputs.new_tag }}"
