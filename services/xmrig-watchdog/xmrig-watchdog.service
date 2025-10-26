@@ -1,0 +1,16 @@
+[Unit]
+Description=XMRig Watchdog Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/xmrig-watchdog/venv/bin/python3 /opt/xmrig-watchdog/xmrig-watchdog.py
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/xmrig-watchdog.log
+StandardError=append:/var/log/xmrig-watchdog.log
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

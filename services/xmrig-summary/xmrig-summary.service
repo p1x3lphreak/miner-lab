@@ -1,0 +1,15 @@
+[Unit]
+Description=XMRig Summary Notifier
+After=network-online.target miner-syncd.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/miner-syncd.env
+ExecStart=/opt/xmrig-summary/venv/bin/python3 /opt/xmrig-summary/xmrig-summary.py
+StandardOutput=append:/var/log/xmrig-summary.log
+StandardError=append:/var/log/xmrig-summary.log
+TimeoutSec=60
+
+[Install]
+WantedBy=multi-user.target

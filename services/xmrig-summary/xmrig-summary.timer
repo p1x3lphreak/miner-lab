@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily XMRig Summary Pushcut
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=900
+AccuracySec=5m
+
+[Install]
+WantedBy=timers.target
