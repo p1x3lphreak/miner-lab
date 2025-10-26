@@ -71,6 +71,10 @@ EOF
 else
   echo "🧠 Existing config.json found — leaving untouched."
 fi
+# --- logrotate copy
+sudo cp ./config/logrotate-d-miner-lab /etc/logrotate.d/miner-lab
+sudo chmod 644 /etc/logrotate.d/miner-lab
+sudo logrotate --debug /etc/logrotate.d/miner-lab
 
 # --- 5. Systemd Service Deployment -----------------------------------------
 echo "⚙️ Deploying systemd service..."

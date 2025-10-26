@@ -1,0 +1,13 @@
+/var/log/xmrig-summary.log /var/log/xmrig-watchdog.log /var/log/miner-syncd.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    delaycompress
+    create 0640 root adm
+    sharedscripts
+    postrotate
+        /bin/systemctl reload-or-restart xmrig-watchdog.service >/dev/null 2>&1 || true
+    endscript
+}
