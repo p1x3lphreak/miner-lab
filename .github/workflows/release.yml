@@ -1,0 +1,59 @@
+name: Release Tagging & Changelog
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Auto-tag & generate changelog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # needed for full git history
+
+      - name: 🧮 Determine next version
+        id: version
+        run: |
+          # read last tag
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $last_tag"
+
+          # bump patch by default
+          IFS='.' read -r major minor patch <<<"${last_tag#v}"
+          new_tag="v${major}.${minor}.$((patch+1))"
+
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: 🧾 Generate changelog
+        id: changelog
+        run: |
+          echo "## Miner-Lab Changelog – ${GITHUB_REF_NAME}" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Commits since last tag:" >> CHANGELOG.md
+          git log $(git describe --tags --abbrev=0 2>/dev/null)..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md || true
+          echo "" >> CHANGELOG.md
+          echo "CHANGELOG generated:"
+          cat CHANGELOG.md
+
+      - name: 🏷️ Create Git tag
+        run: |
+          git tag -a "${{ steps.version.outputs.new_tag }}" -m "Automated release ${{ steps.version.outputs.new_tag }}"
+          git push origin "${{ steps.version.outputs.new_tag }}"
+
+      - name: 🚀 Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: "Miner-Lab ${{ steps.version.outputs.new_tag }}"
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
