@@ -1,151 +1,126 @@
 #!/usr/bin/env bash
 # ============================================================
-# Miner-Lab Unified Installer
-# Version: 1.1.0
-# Author: Justin Farry (p1x3lphreak)
+#  Miner-Lab Bootstrap Installer
+#  Target: Debian 13.x (Trixie) Minimal
+#  Author: Miner-Lab Project
 # ============================================================
 
 set -euo pipefail
-LOG_FILE="/var/log/miner-lab-install.log"
-INSTALL_DIR="/opt/miner-lab"
-ENV_FILE="/etc/miner-lab.env"
-GITHUB_REPO="https://raw.githubusercontent.com/p1x3lphreak/miner-lab/main"
+IFS=$'\n\t'
 
-WITH_AUTOTUNE=false
-FORCE_RECONF=false
+# ----------[ COLOR CODES ]----------
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+RED="\033[1;31m"
+CYAN="\033[1;36m"
+RESET="\033[0m"
 
-# --- Parse Flags ---
-for arg in "$@"; do
-  case $arg in
-    --with-autotune) WITH_AUTOTUNE=true ;;
-    --force) FORCE_RECONF=true ;;
-    *) echo "Unknown option: $arg" && exit 1 ;;
-  esac
-done
+# ----------[ LOGGING ]----------
+log()   { echo -e "${GREEN}[+]${RESET} $*"; }
+warn()  { echo -e "${YELLOW}[!]${RESET} $*"; }
+error() { echo -e "${RED}[-]${RESET} $*" >&2; }
 
-echo "⚙️ Starting Miner-Lab installation..."
-sudo mkdir -p "$(dirname "$LOG_FILE")"
-sudo touch "$LOG_FILE"
-
-# ------------------------------------------------------------
-# 1️⃣ Core Dependencies
-# ------------------------------------------------------------
-echo "📦 Installing dependencies..." | tee -a "$LOG_FILE"
-sudo apt-get update -y
-sudo apt-get install -y python3 python3-venv python3-pip curl git jq logrotate systemd | tee -a "$LOG_FILE"
-
-# ------------------------------------------------------------
-# 2️⃣ Directory Layout
-# ------------------------------------------------------------
-echo "📁 Setting up directory structure..."
-sudo mkdir -p "$INSTALL_DIR"/{scripts,services,install-scripts,logs}
-sudo chown -R "$USER":"$USER" "$INSTALL_DIR"
-
-# ------------------------------------------------------------
-# 3️⃣ Environment Setup
-# ------------------------------------------------------------
-if $FORCE_RECONF; then
-  echo "🔁 Force reconfig enabled — removing old env file..."
-  sudo rm -f "$ENV_FILE"
+# ----------[ ROOT CHECK ]----------
+if [ "$EUID" -ne 0 ]; then
+  error "Please run as root (sudo -i or su -)."
+  exit 1
 fi
+
+# ----------[ SANITY CHECKS ]----------
+log "Checking network connectivity..."
+ping -q -c1 github.com >/dev/null 2>&1 || {
+  error "No network connectivity. Check your internet and try again."
+  exit 1
+}
+
+if ! grep -qi "debian" /etc/os-release; then
+  warn "Non-Debian system detected. Proceeding anyway."
+fi
+
+# ----------[ CONFIGURATION ]----------
+REPO_URL="https://github.com/<YOUR_GITHUB_USERNAME>/miner-lab.git"
+INSTALL_DIR="/opt/miner-lab"
+LOG_DIR="/var/log/miner-lab"
+ENV_FILE="/etc/miner-lab/.env"
+PY_ENV="$INSTALL_DIR/venv"
+USER_NAME="minerlab"
+
+# ----------[ INSTALL DEPENDENCIES ]----------
+log "Installing dependencies..."
+apt-get update -y
+apt-get install -y --no-install-recommends \
+  git curl python3 python3-pip python3-venv logrotate jq net-tools ca-certificates
+
+# ----------[ CREATE USER & DIRECTORIES ]----------
+log "Creating user and directories..."
+id -u $USER_NAME >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" "$USER_NAME"
+mkdir -p "$LOG_DIR" /etc/miner-lab
+
+# ----------[ CLONE OR UPDATE REPO ]----------
+if [ -d "$INSTALL_DIR/.git" ]; then
+  log "Repository already exists, pulling latest..."
+  git -C "$INSTALL_DIR" pull --ff-only
+else
+  log "Cloning repository to $INSTALL_DIR..."
+  git clone "$REPO_URL" "$INSTALL_DIR"
+fi
+
+# ----------[ SET PERMISSIONS ]----------
+chown -R "$USER_NAME":"$USER_NAME" "$INSTALL_DIR" "$LOG_DIR" /etc/miner-lab
+
+# ----------[ PYTHON ENVIRONMENT ]----------
+log "Setting up Python virtual environment..."
+if [ ! -d "$PY_ENV" ]; then
+  python3 -m venv "$PY_ENV"
+fi
+source "$PY_ENV/bin/activate"
+pip install --upgrade pip
+pip install -r "$INSTALL_DIR/docs/requirements.txt"
+deactivate
+
+# ----------[ COPY CONFIG FILES ]----------
+log "Copying configuration files..."
+cp -f "$INSTALL_DIR/config/logrotate.d-miner-lab" /etc/logrotate.d/miner-lab
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "🌍 Creating environment file..."
-  read -rp "Enter RIG name (default: mine-lab): " RIG_NAME
-  RIG_NAME=${RIG_NAME:-mine-lab}
-  read -rp "Enter Pushcut Alert Webhook URL: " PUSHCUT_ALERT_URL
-  read -rp "Enter Pushcut Summary Webhook URL: " PUSHCUT_SUMMARY_URL
-
-  sudo bash -c "cat > $ENV_FILE" <<EOF
-RIG_NAME="$RIG_NAME"
-PUSHCUT_ALERT_URL="$PUSHCUT_ALERT_URL"
-PUSHCUT_SUMMARY_URL="$PUSHCUT_SUMMARY_URL"
-EOF
-  echo "✅ Environment file created at $ENV_FILE"
-else
-  echo "⚙️ Environment file already exists — skipping setup."
+  cp "$INSTALL_DIR/config/example.env" "$ENV_FILE"
+  warn "Environment file created at $ENV_FILE. Edit values before first run if needed."
 fi
 
-# ------------------------------------------------------------
-# 4️⃣ Pull Sub-Installers
-# ------------------------------------------------------------
-echo "⬇️ Fetching installer scripts..."
-curl -fsSL "$GITHUB_REPO/install-scripts/install-miner-syncd.sh" -o "$INSTALL_DIR/install-scripts/install-miner-syncd.sh"
-curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-summary.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-summary.sh"
-curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-watchdog.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-watchdog.sh"
-curl -fsSL "$GITHUB_REPO/install-scripts/install-xmrig-autotune.sh" -o "$INSTALL_DIR/install-scripts/install-xmrig-autotune.sh"
-chmod +x "$INSTALL_DIR"/install-scripts/*.sh
+# ----------[ INSTALL SYSTEMD SERVICES ]----------
+log "Installing systemd service units..."
+SYSTEMD_DIR="/etc/systemd/system"
 
-# ------------------------------------------------------------
-# 5️⃣ Pull Service Units
-# ------------------------------------------------------------
-echo "⬇️ Fetching service & timer units..."
-SERVICES_DIR="/etc/systemd/system"
-
-curl -fsSL "$GITHUB_REPO/services/miner-syncd/miner-syncd.service" -o "$SERVICES_DIR/miner-syncd.service"
-curl -fsSL "$GITHUB_REPO/services/xmrig-summary/xmrig-summary.service" -o "$SERVICES_DIR/xmrig-summary.service"
-curl -fsSL "$GITHUB_REPO/services/xmrig-summary/xmrig-summary.timer" -o "$SERVICES_DIR/xmrig-summary.timer"
-curl -fsSL "$GITHUB_REPO/services/xmrig-watchdog/xmrig-watchdog.service" -o "$SERVICES_DIR/xmrig-watchdog.service"
-curl -fsSL "$GITHUB_REPO/services/xmrig-watchdog/xmrig-watchdog.timer" -o "$SERVICES_DIR/xmrig-watchdog.timer"
-
-sudo chmod 644 "$SERVICES_DIR"/*.service "$SERVICES_DIR"/*.timer
-
-# ------------------------------------------------------------
-# 6️⃣ Deploy Scripts
-# ------------------------------------------------------------
-echo "📜 Deploying core daemon scripts..."
-curl -fsSL "$GITHUB_REPO/scripts/miner-syncd.py" -o "$INSTALL_DIR/scripts/miner-syncd.py"
-sudo chmod +x "$INSTALL_DIR/scripts/"*.py
-
-# ------------------------------------------------------------
-# 7️⃣ Logrotate Configuration
-# ------------------------------------------------------------
-echo "🌀 Installing logrotate config..."
-sudo curl -fsSL "$GITHUB_REPO/config/logrotate/miner-lab.conf" -o /etc/logrotate.d/miner-lab
-sudo chmod 644 /etc/logrotate.d/miner-lab
-echo "✅ Log rotation set for xmrig-watchdog.log and miner-syncd.log"
-
-# ------------------------------------------------------------
-# 8️⃣ Enable and Start Services
-# ------------------------------------------------------------
-echo "🚀 Enabling services..."
-sudo systemctl daemon-reload
-sudo systemctl enable miner-syncd.service
-sudo systemctl enable xmrig-summary.timer
-sudo systemctl enable xmrig-watchdog.timer
-
-sudo systemctl start miner-syncd.service
-sudo systemctl start xmrig-summary.timer
-sudo systemctl start xmrig-watchdog.timer
-
-# ------------------------------------------------------------
-# 9️⃣ Optional Autotune
-# ------------------------------------------------------------
-if $WITH_AUTOTUNE; then
-  echo "🎛️ Running XMRig Autotune..."
-  if [ -f "$INSTALL_DIR/install-scripts/xmrig-autotune.sh" ]; then
-    bash "$INSTALL_DIR/install-scripts/xmrig-autotune.sh" | tee -a "$LOG_FILE"
-  else
-    echo "⚠️ Autotune script missing — skipping autotune." | tee -a "$LOG_FILE"
+install_service() {
+  local svc_dir="$1"
+  cp -f "$INSTALL_DIR/services/$svc_dir"/*.service "$SYSTEMD_DIR"/
+  if compgen -G "$INSTALL_DIR/services/$svc_dir/*.timer" > /dev/null; then
+    cp -f "$INSTALL_DIR/services/$svc_dir"/*.timer "$SYSTEMD_DIR"/
   fi
-else
-  echo "ℹ️ Autotune not requested. Skipping."
-fi
+}
 
-# ------------------------------------------------------------
-# 🔟 Verification
-# ------------------------------------------------------------
-echo "🔍 Verifying systemd timers and services..."
-systemctl list-timers --all | grep xmrig || echo "ℹ️ Timers not yet active — will start soon."
-sudo systemctl status miner-syncd --no-pager | grep Active
+install_service "miner-syncd"
+install_service "xmrig-summary"
+install_service "xmrig-watchdog"
 
-# ------------------------------------------------------------
-# 🏁 Wrap-up
-# ------------------------------------------------------------
-echo "🎉 Miner-Lab installation complete!"
-echo "  🧩 Config: $ENV_FILE"
-echo "  📂 Installed to: $INSTALL_DIR"
-echo "  🧠 Daemon: miner-syncd.service (active)"
-echo "  🕒 Timers: xmrig-summary.timer, xmrig-watchdog.timer"
-$WITH_AUTOTUNE && echo "  ⚙️ Autotune: xmrig-autotune.sh executed successfully"
-echo "  📋 Logs: $LOG_FILE"
+systemctl daemon-reload
+
+# ----------[ ENABLE & START SERVICES ]----------
+log "Enabling and starting services..."
+systemctl enable --now miner-syncd.service || warn "miner-syncd failed to start."
+systemctl enable --now xmrig-summary.timer || warn "xmrig-summary.timer failed to start."
+systemctl enable --now xmrig-watchdog.timer || warn "xmrig-watchdog.timer failed to start."
+
+# ----------[ FINAL STATUS ]----------
+echo ""
+log "Miner-Lab installation complete!"
+echo -e "${CYAN}Log directory:${RESET} $LOG_DIR"
+echo -e "${CYAN}Environment file:${RESET} $ENV_FILE"
+echo ""
+systemctl list-units --type=service | grep miner || true
+echo ""
+log "You can verify operation with:"
+echo "  journalctl -u miner-syncd.service -f"
+echo "  systemctl status xmrig-summary.timer"
+echo ""
+log "Bootstrap complete!"
