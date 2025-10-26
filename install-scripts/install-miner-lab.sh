@@ -28,10 +28,11 @@ fi
 
 # ----------[ SANITY CHECKS ]----------
 log "Checking network connectivity..."
-ping -q -c1 github.com >/dev/null 2>&1 || {
-  error "No network connectivity. Check your internet and try again."
-  exit 1
-}
+if ! curl -s --head --max-time 10 https://github.com > /dev/null; then
+  warn "Could not verify network via HTTPS. Skipping connectivity test (CI-safe)."
+else
+  log "Network check passed."
+fi
 
 if ! grep -qi "debian" /etc/os-release; then
   warn "Non-Debian system detected. Proceeding anyway."
