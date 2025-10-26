@@ -1,0 +1,16 @@
+/var/log/miner-lab/*.log /var/log/miner-lab/*.err {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 minerlab minerlab
+    sharedscripts
+    postrotate
+        # systemd reload isn’t strictly required, but safe
+        if [ -d /etc/systemd/system ]; then
+            systemctl kill -s HUP miner-syncd.service 2>/dev/null || true
+        fi
+    endscript
+}
