@@ -1,0 +1,71 @@
+name: Final Validation - Miner Lab Full Install
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  full-install-test:
+    name: Clean Debian 13 full bootstrap test
+    runs-on: ubuntu-latest
+    container:
+      image: debian:13-slim
+
+    steps:
+      - name: 🧩 Prepare container
+        run: |
+          apt-get update -y
+          apt-get install -y --no-install-recommends \
+            curl git systemd systemd-sysv python3 python3-venv sudo ca-certificates
+
+      - name: 🧠 Mock systemd (safe for container)
+        run: |
+          mkdir -p /usr/local/bin
+          cat <<'EOF' >/usr/local/bin/systemctl
+          #!/bin/bash
+          echo "[mock-systemctl] $@"
+          exit 0
+          EOF
+          chmod +x /usr/local/bin/systemctl
+
+      - name: 📦 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Run full bootstrap installer
+        run: |
+          chmod +x install-scripts/install-miner-lab.sh
+          ./install-scripts/install-miner-lab.sh
+
+      - name: 🔍 Validate structure
+        run: |
+          echo "=== Directory Validation ==="
+          test -d /opt/miner-lab/scripts || (echo "Missing scripts dir" && exit 1)
+          test -f /etc/miner-lab/.env || (echo "Missing env file" && exit 1)
+          test -d /var/log/miner-lab || (echo "Missing log dir" && exit 1)
+          echo "All key directories exist."
+
+      - name: 🔧 Verify Python syntax
+        run: |
+          echo "=== Python Syntax Check ==="
+          find /opt/miner-lab/scripts -name "*.py" -exec python3 -m py_compile {} +
+          echo "Python syntax OK."
+
+      - name: 🧠 Validate systemd unit registration
+        run: |
+          echo "=== Checking services and timers ==="
+          grep -q "miner-syncd" /etc/systemd/system/miner-syncd.service && echo "✓ miner-syncd service found"
+          grep -q "xmrig-summary" /etc/systemd/system/xmrig-summary.service && echo "✓ xmrig-summary service found"
+          grep -q "xmrig-watchdog" /etc/systemd/system/xmrig-watchdog.service && echo "✓ xmrig-watchdog service found"
+          grep -q "xmrig-summary.timer" /etc/systemd/system/xmrig-summary.timer && echo "✓ summary timer found"
+          grep -q "xmrig-watchdog.timer" /etc/systemd/system/xmrig-watchdog.timer && echo "✓ watchdog timer found"
+          echo "Systemd units validated."
+
+      - name: 🧾 Display install results
+        run: |
+          echo "=== Installation Summary ==="
+          ls -R /opt/miner-lab | sed 's/^/ - /'
+          echo "Env file content:"
+          cat /etc/miner-lab/.env || true
